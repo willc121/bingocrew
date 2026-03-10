@@ -1,0 +1,14 @@
+⠙[1G[0K
+> rest-express@1.0.0 dev
+> NODE_ENV=development tsx server/index.ts
+
+⠙[1G[0K8:00:47 PM [express] serving on port 5000
+8:00:52 PM [express] GET /api/auth/user 401 in 2ms :: {"message":"Unauthorized"}
+8:00:52 PM [express] GET /api/notifications 401 in 1ms :: {"message":"Unauthorized"}
+8:01:22 PM [express] GET /api/notifications 401 in 1ms :: {"message":"Unauthorized"}
+8:01:52 PM [express] GET /api/notifications 401 in 1ms :: {"message":"Unauthorized"}
+8:02:22 PM [express] GET /api/notifications 401 in 0ms :: {"message":"Unauthorized"}
+8:02:52 PM [express] GET /api/notifications 401 in 1ms :: {"message":"Unauthorized"}
+8:03:22 PM [express] GET /api/notifications 401 in 1ms :: {"message":"Unauthorized"}
+8:03:52 PM [express] GET /api/notifications 401 in 1ms :: {"message":"Unauthorized"}
+8:04:22 PM [express] GET /api/notifications 401 in 0ms :: {"message":"Unauthorized"}

@@ -1,0 +1,127 @@
+Build a production-ready web app called “Resolution Bingo” for groups to share a bingo card, track each member’s progress, and get realtime notifications when friends complete squares.
+
+Tech requirements
+- Next.js (App Router) + TypeScript + Tailwind CSS.
+- shadcn/ui for UI components.
+- Supabase for:
+  - Auth (email magic link + Google OAuth if easy)
+  - Postgres database
+  - Row Level Security (RLS)
+  - Realtime subscriptions for activity + notifications
+- Deployable on Vercel with minimal config.
+- Include ESLint/Prettier, sensible folder structure, and a strong README.
+- No paid APIs.
+
+Core product requirements
+
+1) Accounts + groups
+- Users can sign up and log in.
+- Users can create a “Group” (ex: “2026 Bingo Crew”).
+- Invite system:
+  - Create invite link or invite code for group
+  - Joining requires being logged in
+- Group page shows:
+  - Members list
+  - Group’s active bingo card
+  - Each member’s completion % and bingos earned
+
+2) Bingo cards (shared template, personal progress)
+- A group has one active 5x5 card template (same 25 items for everyone).
+- Center square is FREE and auto-completed.
+- Each user tracks their own completion state and completion timestamps.
+- Card creation flow:
+  - Manual Fill: enter 24 items, center = FREE
+  - Quick Fill: generate 24 suggestions by category (health, finance, relationships, adventure, learning, home, community)
+- Group owner (or admins) can set or change the active card.
+- Option: “Lock card” so items cannot change after the group starts.
+
+3) Realtime activity feed + notifications
+- When any member completes a square, record an “event”:
+  - who did it, which square, timestamp
+- Group Activity Feed:
+  - shows events in reverse chronological order
+  - updates in realtime using Supabase Realtime subscriptions
+- Notifications:
+  - In-app notification dropdown (bell icon)
+  - Unread count badge
+  - Notification preferences:
+    - all events
+    - only bingos
+    - muted
+- Minimal viable notification is in-app realtime.
+- Stretch goal (optional): email notifications via Supabase Edge Function (only if straightforward).
+
+4) Bingo detection
+- Detect bingos for each user:
+  - any row, column, diagonal
+- Highlight winning line(s) on the card when viewing “My board”.
+- Show summary per user:
+  - squares completed
+  - bingos earned
+  - first bingo celebration animation
+
+5) Customization and themes
+- Add theme support:
+  - Use next-themes for dark/light/system
+  - Add a theme picker with 6-10 themed styles (ex: Minimal, Neon, Cozy, Retro, Nature, Ocean, Space, Holiday)
+- Themes affect:
+  - background pattern
+  - card border style
+  - accent styling
+- Per-group customization:
+  - group name + emoji/icon
+  - theme selection stored in DB
+- Per-square customization:
+  - optional emoji per square (auto-suggested or manual)
+
+6) Views / pages
+- / : Landing or redirect to /groups if logged in
+- /groups : list groups + create group
+- /groups/[groupId] : group dashboard (card + members + activity)
+- /groups/[groupId]/create-card : create or update active card (admin)
+- /me : profile, notification preferences
+- /print/[groupId] : print-optimized card template
+- /export : export/import progress as JSON for my account
+
+Data model (Postgres)
+Implement these tables with migrations and RLS:
+
+- profiles (id uuid pk, display_name, avatar_url, created_at)
+- groups (id uuid pk, name, emoji, theme, owner_id, created_at, card_locked bool)
+- group_members (group_id, user_id, role enum: owner/admin/member, created_at)
+- group_invites (id uuid pk, group_id, code text unique, expires_at, created_by)
+- cards (id uuid pk, group_id unique, title, items jsonb[25], created_at, updated_at)
+- progress (group_id, user_id, completed bool[25], completed_at timestamptz[25], updated_at)
+- events (id uuid pk, group_id, user_id, type text, square_index int, created_at)
+- notifications (id uuid pk, user_id, group_id, event_id, read_at timestamptz null, created_at)
+
+Rules
+- Only group members can read group data.
+- Only admins/owner can set/update card.
+- Any member can update their own progress.
+- Events are insert-only; created when user toggles a square to completed (and also when bingo achieved).
+- Notifications are created for other group members when an event happens.
+
+Implementation details
+- Use Supabase client on client components for realtime subscriptions and reads.
+- Use Next.js Server Actions or API routes for secure writes (creating groups, invites, card updates, toggles).
+- Ensure toggle logic is idempotent:
+  - If marking complete: set completed=true and completed_at timestamp if empty
+  - If unmarking: set completed=false and completed_at stays (or clear it, pick one approach and document)
+- Build pure utility functions:
+  - computeWinningLines(completed[25]) => list of line ids + indices
+  - computeCompletionPercent(completed[25])
+- Add basic tests for bingo detection utilities.
+
+Deliverables
+- Full working code with migrations.
+- Seed script for local/dev demo (optional).
+- README:
+  - local setup
+  - Supabase project + env vars
+  - apply migrations
+  - run locally
+  - deploy on Vercel
+
+Output format
+- Provide full file tree and full contents for each file.
