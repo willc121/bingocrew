@@ -6,10 +6,17 @@ on:
     - cron: '0 8 * * *'
   workflow_dispatch: # Allow manual trigger
 
+# Needed so the heartbeat step can push a commit back to the repo.
+permissions:
+  contents: write
+
 jobs:
   keepalive:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -67,3 +74,31 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Keep repository active (prevent scheduled-workflow auto-disable)
+        # Runs regardless of the Supabase ping result so the workflow can never
+        # disable itself just because the database is temporarily unreachable.
+        if: always()
+        run: |
+          # GitHub auto-disables scheduled workflows after 60 days of repo
+          # inactivity. A scheduled run does NOT count as activity, so we push a
+          # tiny heartbeat commit when the last commit is >= 45 days old. That
+          # resets the 60-day timer with a comfortable safety margin while
+          # keeping commit noise low (~8 commits/year instead of one per day).
+          LAST_COMMIT_EPOCH=$(git log -1 --format=%ct)
+          NOW_EPOCH=$(date -u +%s)
+          DAYS_SINCE=$(( (NOW_EPOCH - LAST_COMMIT_EPOCH) / 86400 ))
+          echo "Days since last commit: $DAYS_SINCE"
+
+          if [ "$DAYS_SINCE" -ge 45 ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            mkdir -p .github
+            date -u +"%Y-%m-%dT%H:%M:%SZ" > .github/last-keepalive.txt
+            git add .github/last-keepalive.txt
+            git commit -m "chore: keepalive heartbeat to prevent workflow auto-disable [skip ci]"
+            git push
+            echo "✅ Pushed heartbeat commit (repo inactivity timer reset)"
+          else
+            echo "ℹ️ Repo last active $DAYS_SINCE days ago (< 45); no heartbeat needed"
+          fi
