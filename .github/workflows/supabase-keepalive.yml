@@ -15,20 +15,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
 
       - name: Ping Supabase to keep alive
         run: |
-          npm install pg @supabase/supabase-js
+          # Install only a pinned pg into a scratch dir. Running npm in the repo
+          # root pulled the app's full dependency tree, and an unpinned
+          # @supabase/supabase-js broke the ping when a new release was
+          # published mid-run (ETARGET on @supabase/auth-js).
+          mkdir -p "$RUNNER_TEMP/keepalive" && cd "$RUNNER_TEMP/keepalive"
+          echo '{ "private": true }' > package.json
+          npm install --no-audit --no-fund --ignore-scripts pg@8.23.0
 
           node -e "
           const { Client } = require('pg');
-          const { createClient } = require('@supabase/supabase-js');
 
           (async () => {
             let pgSuccess = false;
@@ -50,14 +55,22 @@ jobs:
               console.log('⚠️ DATABASE_URL not set, skipping direct Postgres');
             }
 
-            // Method 2: Supabase REST API fallback
+            // Method 2: Supabase REST API fallback (same request supabase-js makes)
             if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
-              const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
-              const { data, error } = await supabase.from('cards').select('id').limit(1);
-              if (error) {
-                console.log('⚠️ REST API query error:', error.message);
-              } else {
-                console.log('✅ REST API ping succeeded, rows:', data.length);
+              const key = process.env.SUPABASE_ANON_KEY;
+              const base = process.env.SUPABASE_URL.endsWith('/') ? process.env.SUPABASE_URL : process.env.SUPABASE_URL + '/';
+              try {
+                const res = await fetch(new URL('rest/v1/cards?select=id&limit=1', base), {
+                  headers: { apikey: key, Authorization: 'Bearer ' + key },
+                });
+                const body = await res.json().catch(() => null);
+                if (!res.ok) {
+                  console.log('⚠️ REST API query error:', (body && body.message) || res.status + ' ' + res.statusText);
+                } else {
+                  console.log('✅ REST API ping succeeded, rows:', body.length);
+                }
+              } catch (err) {
+                console.log('⚠️ REST API query error:', err.message);
               }
             }
 
